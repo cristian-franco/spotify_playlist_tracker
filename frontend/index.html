@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8">
+    <h1 class="text-2xl font-bold mb-4">Test Spotify Auth</h1>
+
+    <button onclick="loginSpotify()" class="bg-green-500 text-white px-4 py-2 rounded">
+        Login with Spotify
+    </button>
+
+    <div id="result" class="mt-4"></div>
+
+    <script>
+        function loginSpotify() {
+            // Redirect to your FastAPI auth endpoint
+            window.location.href = 'http://localhost:8001/auth/spotify/login';
+        }
+
+        // Check if we got redirected back with user data
+        window.onload = function() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('success')) {
+                document.getElementById('result').innerHTML =
+                    '<p class="text-green-600">Login successful!</p>';
+            }
+        }
+    </script>
+</body>
+</html>
