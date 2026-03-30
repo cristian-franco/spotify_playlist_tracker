@@ -9,10 +9,16 @@ from sqlalchemy import Column, Integer, String, JSON, DateTime
 import os
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+from cryptography.fernet import Fernet
 
 # Database Setup
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
+# Load from environment variable - generate once with Fernet.generate_key().decode()
+ENCRYPTION_KEY = os.environ["ENCRYPTION_KEY"].encode()
+fernet = Fernet(ENCRYPTION_KEY)
+
+SENSITIVE_KEYS = {"access_token", "refresh_token"}
 engine = create_async_engine(DATABASE_URL, echo=True)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
@@ -23,6 +29,7 @@ class RawData(Base):
     user_id = Column(String, index=True)
     data = Column(JSON)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
 
 
 # Lifespan event handler
@@ -54,6 +61,12 @@ SPOTIFY_CLIENT_ID = os.getenv("spotify_app_client_id")
 SPOTIFY_CLIENT_SECRET = os.getenv("spotify_app_client_secret")
 REDIRECT_URI = "http://127.0.0.1:8001/auth/spotify/callback"
 
+def encrypt_value(value: str) -> str:
+    return fernet.encrypt(value.encode()).decode()
+
+def decrypt_value(token: str) -> str:
+    return fernet.decrypt(token.encode()).decode()
+
 @app.get("/auth/spotify/login")
 async def spotify_login():
     # Redirect to Spotify
@@ -75,11 +88,15 @@ async def save_to_database(
         user_id: str,
         data: dict
 ):
-    """Save raw data to database"""
+    encrypted_data = {
+        key: encrypt_value(str(value)) if key in SENSITIVE_KEYS and value else value
+        for key, value in data.items()
+    }
+
     async with AsyncSessionLocal() as session:
         raw_data = RawData(
             user_id=user_id,
-            data=data
+            data=encrypted_data
         )
         session.add(raw_data)
         await session.commit()
