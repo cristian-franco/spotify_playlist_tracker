@@ -1,0 +1,96 @@
+services:
+  postgres-data-ingestion-service:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: data_ingestion_service_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_ingestion_service_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d data_ingestion_service_db" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres-user-service:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: user_service_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_user_service_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d user_service_db" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  data-ingestion-service:
+    build: ./data-ingestion-service
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@postgres-data-ingestion-service/data_ingestion_service_db
+      - REDIS_URL=redis://redis:6379
+      - API_ENDPOINT=https://api.example.com/data
+      - POLL_INTERVAL=60
+    depends_on:
+      postgres-data-ingestion-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data-ingestion-service:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  user_service:
+    build: ./user-service
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@postgres-user-service/user_service_db
+      - REDIS_URL=redis://redis:6379
+      - API_ENDPOINT=https://api.example.com/other-data
+      - POLL_INTERVAL=120
+    depends_on:
+      postgres-user-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./user-service:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - data-ingestion-service
+      - user_service
+
+volumes:
+  redis_data:
+  postgres_data_ingestion_service_data:
+  postgres_user_service_data:
