@@ -2,5 +2,6 @@
 .spotifycache
 __pycache__/
 *.pyc
-*.csv
 .idea
+frontend/node_modules
+*.csv
