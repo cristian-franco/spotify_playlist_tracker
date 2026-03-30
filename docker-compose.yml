@@ -71,6 +71,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - API_ENDPOINT=https://api.example.com/other-data
       - POLL_INTERVAL=120
+      - spotify_app_client_id=${spotify_app_client_id}
+      - spotify_app_client_secret=${spotify_app_client_secret}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     depends_on:
       postgres-user-service:
         condition: service_healthy
